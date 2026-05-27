@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 05/26/2026 01:49:32 PM
+// Create Date: 05/27/2026 05:13:59 PM
 // Design Name: 
-// Module Name: conv2d
+// Module Name: conv2d_faster
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module conv2d(
+module conv2d_faster(
     input clk, rst,
     input signed [31:0] image [783:0],
     input signed [31:0] bias,
@@ -44,36 +44,43 @@ module conv2d(
     
     wire [31:0] ip_counter;
     wire [31:0] ip_row_counter;
-    wire [31:0] ip_col_counter;
     
     wire [31:0] kernel_counter;
     reg [31:0] kernel_row_counter;
-    reg [31:0] kernel_col_counter;
     
     wire [31:0] op_counter;
     reg [31:0] op_row_counter;
     reg [31:0] op_col_counter;
 
     reg kernel_rst;
-    reg signed [63:0] temp_rout;
+    reg signed [63:0] temp_rout [4:0];
+    wire signed [63:0] acc [4:0];
+
+    integer j;
+
+    assign ip_counter = (ip_row_counter * 32'd28);
+    assign kernel_counter = (kernel_row_counter * 32'd5);
+    assign op_counter = (op_row_counter * 32'd24) + op_col_counter;
+    assign ip_row_counter = op_row_counter + kernel_row_counter;
+
+    genvar i;
+
+    generate
+        for(i=0; i<5; i=i+1) begin
+            mac mac_unit(clk, rst||kernel_rst, image[ip_counter+op_col_counter+i], weight[kernel_counter+i], acc[i], temp_rout[i]);
+            assign acc[i] = temp_rout[i];
+        end
+    endgenerate
 
     wire signed [63:0] scaled;
 
-    assign scaled = (temp_rout>>>6) + bias;
+    assign scaled = ((temp_rout[0] + temp_rout[1] + temp_rout[2] + temp_rout[3] + temp_rout[4])>>>6) + bias;
 
-    assign ip_counter = (ip_row_counter * 32'd28) + ip_col_counter;
-    assign kernel_counter = (kernel_row_counter * 32'd5) + kernel_col_counter;
-    assign op_counter = (op_row_counter * 32'd24) + op_col_counter;
-    assign ip_row_counter = op_row_counter + kernel_row_counter;
-    assign ip_col_counter = op_col_counter + kernel_col_counter;
-
-    mac mac_unit(clk, rst||kernel_rst, image[ip_counter], weight[kernel_counter], temp_rout, temp_rout);
 
     always@(posedge clk) begin
         if(rst) begin
             state <= IDLE;
             kernel_row_counter <= 32'd0;
-            kernel_col_counter <= 32'd0;
             op_row_counter <= 32'd0;
             op_col_counter <= 32'd0;
             valid <= 1'b0;
@@ -86,7 +93,6 @@ module conv2d(
                     valid <= 1'b0;
                     
                     kernel_row_counter <= 32'd0;
-                    kernel_col_counter <= 32'd0;
                     op_row_counter <= 32'd0;
                     op_col_counter <= 32'd0;
                     
@@ -95,14 +101,8 @@ module conv2d(
                 end
                 CALC: begin
                     kernel_rst <= 1'b0;
-                    if(kernel_counter < 32'd24) begin
-                        if(kernel_col_counter < 32'd4) begin
-                            kernel_col_counter <= kernel_col_counter + 1'b1;
-                        end
-                        else begin
-                            kernel_col_counter <= 32'd0;
-                            kernel_row_counter <= kernel_row_counter + 1'b1;
-                        end
+                    if(kernel_row_counter < 32'd4) begin
+                        kernel_row_counter <= kernel_row_counter + 1'b1;
                     end
                     else begin
                         state <= FINALIZE;
@@ -117,17 +117,9 @@ module conv2d(
                     state <= SHIFT;
                 end
                 SHIFT: begin
-
                     if(scaled > 64'sd127) rout[op_counter] <= 32'sd127;
                     else if(scaled < -64'sd128) rout[op_counter] <= -32'sd128;
                     else rout[op_counter] <= scaled[31:0];
-                    
-                    $display("op=%0d temp=%0d bias=%0d final=%0d",
-                      op_counter,
-                      temp_rout,
-                      bias,
-                      temp_rout + bias);
-                    
                     state <= RESET;
                 end
                 RESET: begin

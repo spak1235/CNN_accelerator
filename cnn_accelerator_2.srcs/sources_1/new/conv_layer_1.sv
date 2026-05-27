@@ -40,9 +40,9 @@ module conv_layer_1(
     output valid_2
     );
 
-    conv2d conv_0_0(clk, rst, image, bias[0], inp_valid, weight_0_0, rout_0, valid_0);
+    conv2d_faster conv_0_0(clk, rst, image, bias[0], inp_valid, weight_0_0, rout_0, valid_0);
 
-    conv2d conv_0_1(clk, rst, image, bias[1], inp_valid, weight_0_1, rout_1, valid_1);
+    conv2d_faster conv_0_1(clk, rst, image, bias[1], inp_valid, weight_0_1, rout_1, valid_1);
 
-    conv2d conv_0_2(clk, rst, image, bias[2], inp_valid, weight_0_2, rout_2, valid_2);
+    conv2d_faster conv_0_2(clk, rst, image, bias[2], inp_valid, weight_0_2, rout_2, valid_2);
 endmodule
