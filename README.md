@@ -182,3 +182,7 @@ The accelerator successfully performs:
 - FPGA-compatible quantized execution
 
 using a completely handwritten RTL implementation in Verilog.
+
+---
+
+**Repository:** https://github.com/spak1235/CNN_accelerator
